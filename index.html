@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Election Game 2024</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>Election Game 2024</h1>
+      <p class="sub">Simulate an election based on your political stances!</p>
+      <button id="restart" class="btn ghost" type="button">Restart Game</button>
+    </header>
+
+    <section class="panel" id="preset-panel">
+      <h3>Election</h3>
+      <div class="field">
+        <label for="preset-select">Preset</label>
+        <select id="preset-select"></select>
+      </div>
+      <p class="note" id="preset-note"></p>
+    </section>
+
+    <section class="cards">
+      <article class="card red" id="cand1-card"></article>
+      <article class="card blue" id="cand2-card"></article>
+    </section>
+
+    <section class="panel" id="env-panel">
+      <h3>National Environment</h3>
+      <p class="note">The baseline national margin before candidate and approval effects. It shifts every state by the same amount. D+ favors the Democrat, R+ the Republican. For reference: 2024 was about R+1.5 and 2020 about D+4.5.</p>
+      <div class="field">
+        <label for="env"><span>National environment</span><span class="val wide" id="env-val">EVEN</span></label>
+        <input type="range" id="env" min="-40" max="40" step="1" value="0" />
+      </div>
+    </section>
+
+    <details id="state-settings" class="panel">
+      <summary>State Settings (PVI &amp; stances)</summary>
+      <p class="note">PVI is a state's partisan lean vs. the nation (Texas = R+6). Pick a state, then change its PVI or any stance. Edits are kept for every state until you reset them.</p>
+      <div class="state-controls">
+        <select id="state-select" aria-label="State"></select>
+        <button id="state-reset" class="btn ghost" type="button">Reset this state</button>
+        <button id="state-reset-all" class="btn ghost" type="button">Reset all states</button>
+      </div>
+      <div id="state-sliders"></div>
+      <p id="edited-note" class="note"></p>
+    </details>
+
+    <div class="run">
+      <button id="run" class="btn primary" type="button">Run Simulation</button>
+    </div>
+
+    <section id="results" hidden>
+      <h2>Election Results by State</h2>
+      <p id="approval-note" class="note"></p>
+      <ul id="state-list" class="state-list"></ul>
+
+      <h2>The 3 Closest States</h2>
+      <ul id="closest-list" class="closest-list"></ul>
+
+      <h2>Closest States Margin Visualization</h2>
+      <div class="chart" id="chart"></div>
+
+      <h2>Final Results</h2>
+      <div class="final">
+        <div id="final-1"></div>
+        <div id="final-2"></div>
+      </div>
+      <div id="verdict" class="verdict"></div>
+    </section>
+  </main>
+
+  <script src="elections.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
