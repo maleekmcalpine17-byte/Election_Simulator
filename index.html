@@ -14,6 +14,15 @@
       <button id="restart" class="btn ghost" type="button">Restart Game</button>
     </header>
 
+    <nav class="tabs" id="tabs" aria-label="Elections">
+      <button class="tab active" type="button" data-tab="president">President</button>
+      <button class="tab" type="button" data-tab="senate-single">Senate: single race</button>
+      <button class="tab" type="button" data-tab="senate-all">Senate: all races</button>
+      <button class="tab" type="button" data-tab="governor-single">Governor: single race</button>
+      <button class="tab" type="button" data-tab="governor-all">Governor: all races</button>
+    </nav>
+
+    <div id="tab-president" class="tabpanel">
     <section class="panel" id="preset-panel">
       <h3>Election</h3>
       <div class="field">
@@ -27,13 +36,14 @@
       <article class="card red" id="cand1-card"></article>
       <article class="card blue" id="cand2-card"></article>
     </section>
+    <section class="cards" id="third-cards"></section>
 
     <section class="panel" id="env-panel">
       <h3>National Environment</h3>
       <p class="note">The baseline national margin before candidate and approval effects. It shifts every state by the same amount. D+ favors the Democrat, R+ the Republican. For reference: 2024 was about R+1.5 and 2020 about D+4.5.</p>
       <div class="field">
         <label for="env"><span>National environment</span><span class="val wide" id="env-val">EVEN</span></label>
-        <input type="range" id="env" min="-60" max="60" step="1" value="0" />
+        <input type="range" id="env" min="-70" max="70" step="1" value="0" />
       </div>
     </section>
 
@@ -68,12 +78,23 @@
       <div class="final">
         <div id="final-1"></div>
         <div id="final-2"></div>
+        <div id="final-3"></div>
+        <div id="final-4"></div>
+        <div id="final-5"></div>
       </div>
       <div id="verdict" class="verdict"></div>
     </section>
+    </div>
+
+    <div id="tab-senate-single" class="tabpanel" hidden></div>
+    <div id="tab-senate-all" class="tabpanel" hidden></div>
+    <div id="tab-governor-single" class="tabpanel" hidden></div>
+    <div id="tab-governor-all" class="tabpanel" hidden></div>
   </main>
 
   <script src="elections.js"></script>
   <script src="script.js"></script>
+  <script src="races.js"></script>
+  <script src="downballot.js"></script>
 </body>
 </html>

@@ -93,3 +93,54 @@ h2 { margin: 36px 0 12px; font-size: 1.25rem; }
 #preset-panel h3 { margin: 0 0 8px; font-size: 1.05rem; }
 #preset-panel .field { margin-bottom: 8px; }
 #preset-panel .note { margin: 0; }
+
+/* ---------- tabs ---------- */
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.tab { font: inherit; cursor: pointer; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); }
+.tab:hover { filter: brightness(0.96); }
+.tab.active { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
+.tabpanel[hidden] { display: none; }
+.tabpanel > .panel, .tabpanel > .cards { margin-top: 16px; }
+.tabpanel > .panel:first-child { margin-top: 0; }
+.field.check label { display: flex; gap: 8px; align-items: center; justify-content: flex-start; }
+.note.info { margin: 8px 0 0; }
+
+/* ---------- results / breakdown ---------- */
+.result h3, .summary h3 { margin: 0 0 10px; font-size: 1.1rem; }
+.breakdown { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .95rem; }
+.breakdown td { padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.breakdown td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.breakdown tr.total td { font-weight: 700; border-bottom: 0; }
+.tally { display: flex; gap: 14px; margin: 4px 0 8px; }
+.tally .t { flex: 1; border-radius: 10px; padding: 10px 14px; border: 1px solid var(--line); border-left: 6px solid var(--tie); }
+.tally .t.r { border-left-color: var(--red); } .tally .t.b { border-left-color: var(--blue); }
+.tally .t span { display: block; color: var(--muted); font-size: .85rem; }
+.tally .t b { font-size: 1.8rem; font-variant-numeric: tabular-nums; }
+
+/* ---------- all-races table ---------- */
+.all-controls { display: grid; gap: 8px; }
+.table-wrap { overflow-x: auto; margin-top: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.race-table { width: 100%; border-collapse: collapse; font-size: .93rem; min-width: 860px; }
+.race-table th { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); color: var(--muted); font-weight: 600; }
+.race-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.race-table td.name input { width: 100%; min-width: 150px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font: inherit; }
+.race-table td.name.r input { border-left: 4px solid var(--red); } .race-table td.name.d input { border-left: 4px solid var(--blue); }
+.race-table td.res.r { border-left: 4px solid var(--red); } .race-table td.res.b { border-left: 4px solid var(--blue); }
+.race-table small { color: var(--muted); }
+.race-table tr.detail td { background: var(--bg); padding: 14px; }
+.badge { display: inline-block; min-width: 1.8em; text-align: center; font-weight: 700; border-radius: 6px; padding: 1px 6px; color: #fff; }
+.badge.r { background: var(--red); } .badge.b { background: var(--blue); }
+.flip { background: var(--warn-bg); color: var(--warn-tx); font-size: .72rem; font-weight: 700; border-radius: 4px; padding: 1px 5px; }
+.btn.small { padding: 4px 10px; font-size: .85rem; }
+
+/* ---------- third parties ---------- */
+#third-cards { margin-top: 16px; }
+#third-cards:empty { display: none; }
+.card.t1 { border-top-color: #8e44ad; } .card.t2 { border-top-color: #e67e22; }
+.card.t1 input[type="range"] { accent-color: #8e44ad; } .card.t2 input[type="range"] { accent-color: #e67e22; }
+.state-list li.t1, .closest-list li.t1 { border-left-color: #8e44ad; }
+.state-list li.t2, .closest-list li.t2 { border-left-color: #e67e22; }
+.state-list li.o, .closest-list li.o { border-left-color: var(--tie); }
+.shares { display: block; color: var(--muted); font-size: .8rem; }

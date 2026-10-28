@@ -69,50 +69,69 @@ const ELECTION_DATA = typeof ELECTIONS !== "undefined" ? ELECTIONS : (typeof req
 const ELECTION_KEYS = Object.keys(ELECTION_DATA).sort((a, b) => b - a);   // newest first
 let currentPreset = "current";
 
-// Returns the states, environment and candidate names for a preset.
-// For a real election each state's PVI is (state margin - national environment) / 2, so with typical
-// candidates and equal approval every state lands exactly on its real margin (see the margin model below).
+// Index of the largest value (first one wins a tie).
+const argmax = (a) => a.reduce((best, x, i) => (x > a[best] ? i : best), 0);
+
+// Candidates of the "current day" mode: no real third party, one hypothetical slot is offered in the UI.
+const currentCands = () => ({
+  r: { name: "", party: "Republican", abbr: "R" }, d: { name: "", party: "Democrat", abbr: "D" }, t1: null, t2: null,
+});
+
+// Returns the states, environment, candidates and note for a preset.
+// Each state keeps the real vote shares of up to four candidates (R, D and two third parties). The two-party margin
+// M2 = 100 x (R - D) / (R + D) is what the model moves; a state's PVI is (its M2 - the national M2) / 2, so with typical
+// candidates and the real third-party shares every state lands exactly on its real result.
 function presetData(key) {
   if (key === "current" || !ELECTION_DATA[key]) {
-    return { states: deepCopy(STATES), env: 0, r: "", d: "", note: "Current day: every state starts at its 2025 Cook PVI and 2024 electoral votes." };
+    return { states: deepCopy(STATES), env: 0, cands: currentCands(), nat: [0, 0],
+      note: "Current day: every state starts at its 2025 Cook PVI and 2024 electoral votes. You can add a hypothetical third-party candidate below." };
   }
   const e = ELECTION_DATA[key];
   const states = {};                              // only states that took part; issue stances are the same in every preset
   const fixedNames = [], splitNames = [];
   for (const name of Object.keys(STATES)) {
-    if (!e.states[name]) continue;                // didn't exist yet, or didn't take part (e.g. the Confederacy in 1864)
-    const [ev, margin, a, b] = e.states[name];
+    const rec = e.states[name];
+    if (!rec) continue;                           // didn't exist yet, or didn't take part (e.g. the Confederacy in 1864)
     const s = deepCopy(STATES[name]);
-    s.electoral_college = ev;
-    if (margin === null) {                        // electors chosen by the state legislature: no popular vote
-      s.fixed = a;                                // 1 = Republican, 2 = Democrat
+    s.electoral_college = rec[0];
+    if (rec[1] === null) {                        // electors chosen by the state legislature: no popular vote
+      s.fixed = true;
+      s.fixed_slot = rec[2];                      // 0 R, 1 D, 2 T1, 3 T2, 4 others
       s.pvi = 0;
       fixedNames.push(name);
     } else {
-      s.pvi = (margin - e.environment) / 2;
-      if (a !== undefined) {                      // real electors were split between the candidates
-        s.ev_split = { r: a, d: b };
-        s.base_winner = margin > 0 ? 1 : 2;
+      const [, r, d, t1 = 0, t2 = 0, evs] = rec;
+      s.sh = { r, d, t1, t2 };
+      s.o = Math.max(0, 100 - r - d - t1 - t2);
+      s.pvi = (100 * (r - d) / (r + d) - e.environment) / 2;
+      if (evs) {                                  // real electors were split between candidates
+        s.evs = evs;
+        s.base_winner = argmax([r, d, t1, t2]);
         splitNames.push(name);
       }
     }
     states[name] = s;
   }
-  const modern = e.year >= 1976;
-  let note = `${e.year}: ${e.r} (R) vs. ${e.d} (D). Every state starts at its real ${e.year} result and electoral votes, ` +
-    (modern ? `counted winner-take-all by state (Maine and Nebraska aren't split). ` : `counted by state. `) +
+  const c = e.cand;
+  const names = [`${c.r.name} (${c.r.abbr})`, `${c.d.name} (${c.d.abbr})`];
+  if (c.t1) names.push(c.t1.name);
+  if (c.t2) names.push(c.t2.name);
+  let note = `${e.year}: ${names.join(" vs. ")}. Every state starts at its real ${e.year} result and electoral votes, ` +
+    (e.year >= 1976 ? `counted winner-take-all by state (Maine and Nebraska aren't split). ` : `counted by state. `) +
     `Candidates start at a typical profile with equal approval, so running it as-is reproduces the real result. Move the sliders to ask "what if".`;
+  if (c.t1) {
+    note += ` Third parties are modeled by vote share: ${[c.t1, c.t2].filter(Boolean).map((t, i) => `${t.name} (${t.party}) took ${e.nat[i].toFixed(1)}% nationally`).join(", ")}. ` +
+      `Change a third-party candidate's national vote share below (0 drops them out and their votes go to the major candidates in proportion). A state goes to whoever has the most votes, so a third party can carry states.`;
+  } else {
+    note += ` You can add a hypothetical third-party candidate below.`;
+  }
   if (e.absent && e.absent.length) {
     note += ` ${e.absent.length} jurisdictions that weren't states yet, or didn't take part, are left out.`;
   }
   if (fixedNames.length) note += ` ${fixedNames.join(" and ")} had no popular vote (electors chosen by the state legislature), so ${fixedNames.length > 1 ? "their" : "its"} electoral votes are fixed.`;
   if (splitNames.length) note += ` Real electors were split in ${splitNames.join(", ")}; the split is kept until you flip that state.`;
-  if (e.thirdParty.pct >= 5) {
-    note += e.thirdParty.name === "other candidates"
-      ? ` Other candidates together took ${e.thirdParty.pct}% of the vote; margins are Republican % minus Democratic % of the votes listed.`
-      : ` A third-party candidate (${e.thirdParty.name}, ${e.thirdParty.pct}%) also ran; margins are Republican % minus Democratic % of the total vote.`;
-  }
-  return { states, env: e.environment, r: e.r, d: e.d, note };
+  if (e.note) note += ` ${e.note}`;
+  return { states, env: e.environment, cands: c, nat: e.nat, note };
 }
 
 // ---------- Margin model ----------
@@ -137,7 +156,7 @@ const STATE_FIELDS = [
   { key: "abortion", label: "Abortion (1: pro-life, 10: pro-choice)" },
   { key: "foreign_policy", label: "Foreign policy (1: dovish, 10: hawkish)" },
 ];
-const PVI_MIN = -70, PVI_MAX = 60;   // wide enough for 1920s Deep South (D+59) and 1964 Mississippi (R+49)
+const PVI_MIN = -80, PVI_MAX = 60;   // wide enough for the 1920s Deep South and 1964 Mississippi
 
 // Round half up to 3 decimals, so razor-thin margins (Florida 2000 was 0.009 points) keep their winner.
 const roundM = (x) => Math.floor(x * 1000 + 0.5) / 1000;
@@ -149,6 +168,16 @@ const fmtMargin = (m) => {
   const shown = Math.floor(Math.abs(m) * 10 ** digits + 0.5) / 10 ** digits;   // round half up (same as the Streamlit version)
   return (m > 0 ? "R+" : "D+") + shown.toFixed(digits);
 };
+
+// The presidential tab's party labels follow the loaded preset (Whig, National Republican, ...).
+let PRES = { r: { abbr: "R" }, d: { abbr: "D" } };
+const roundShown = (m) => {
+  const digits = Math.abs(m) < 0.1 ? 2 : 1;
+  return { digits, shown: Math.floor(Math.abs(m) * 10 ** digits + 0.5) / 10 ** digits };   // round half up (same as the Streamlit version)
+};
+const fmtPviP = (n) => (n === 0 ? "EVEN" : (n > 0 ? PRES.r.abbr : PRES.d.abbr) + "+" + fmtNum(Math.abs(n)));
+const fmtMarginP = (m) => { if (m === 0) return "EVEN"; const { digits, shown } = roundShown(m); return (m > 0 ? PRES.r.abbr : PRES.d.abbr) + "+" + shown.toFixed(digits); };
+const fmtLead = (abbr, lead) => { if (lead === 0) return "EVEN"; const { digits, shown } = roundShown(lead); return abbr + "+" + shown.toFixed(digits); };
 
 function issueScore(attrs, c) {
   let s = 0;
@@ -173,34 +202,67 @@ function stateMargin(attrs, stateName, c1, c2, nationalSwing) {
   return roundM(Math.max(-100, Math.min(100, m)));
 }
 
-// rng, stateData and environment are injectable for testing; they default to Math.random,
-// the edited states and an EVEN national environment.
-function simulate(c1, c2, rng = Math.random, stateData = currentStates, environment = 0) {
+// rng, stateData, environment and thirds are injectable for testing; they default to Math.random, the edited states,
+// an EVEN national environment and the real third-party shares.
+// thirds: [{ share, actual, toR }, ...] = the national vote share asked for, the real one, and (optional) the fraction of
+// that candidate's voters who would pick the Republican over the Democrat (0..1; omitted = in proportion to each state's
+// major-party vote). With real data the state shares are scaled by share / actual; with no real data (actual 0) the share
+// is spread evenly over every state. Votes a third party loses go to R and D by toR, and votes it gains come from them the same way.
+// stateMargin() gives the two-party margin M2 (R - D, points of the two-party vote); the major candidates split whatever
+// the third parties and others leave, and the state goes to whoever has the most votes.
+function simulate(c1, c2, rng = Math.random, stateData = currentStates, environment = 0, thirds = null) {
   const approval = approvalSwing(c1.approval, c2.approval);
   const swing = environment + approval;
-  let votes1 = 0, votes2 = 0;
+  const votes = [0, 0, 0, 0, 0];                  // electors per slot: R, D, T1, T2, others
   const results = [];
   for (const [state, attrs] of Object.entries(stateData)) {
     const ev = attrs.electoral_college;
     if (attrs.fixed) {                            // electors chosen by the state legislature: nothing to simulate
-      if (attrs.fixed === 1) votes1 += ev; else votes2 += ev;
-      results.push({ state, ev, signed: null, margin: null, winner: attrs.fixed, tie: false, fixed: true, split: null });
+      votes[attrs.fixed_slot] += ev;
+      results.push({ state, ev, signed: null, margin: null, lead: null, winner: attrs.fixed_slot, tie: false, fixed: true, split: null, shares: null });
       continue;
     }
-    const signed = stateMargin(attrs, state, c1, c2, swing);
-    let winner, tie = false;
-    if (signed > 0) winner = 1;
-    else if (signed < 0) winner = 2;
-    else { tie = true; winner = rng() < 0.5 ? 1 : 2; }
+    const m2 = stateMargin(attrs, state, c1, c2, swing);
+    const base = attrs.sh ? [attrs.sh.t1, attrs.sh.t2] : [0, 0];
+    const t = [0, 1].map((i) => {
+      const th = thirds && thirds[i];
+      if (!th) return base[i];
+      return th.actual > 0 ? base[i] * (th.share / th.actual) : th.share;
+    });
+    const o = attrs.o || 0;
+    // Scaling a third party up can't squeeze the major candidates below 1% (or below what they really had, e.g. Lincoln
+    // wasn't on the ballot in Texas in 1860), so the real shares are always reproduced exactly.
+    const basePool = 100 - o - base[0] - base[1];
+    const maxT = Math.max(0, 100 - o - Math.min(1, basePool));
+    const tsum = t[0] + t[1];
+    if (tsum > maxT) { t[0] *= maxT / tsum; t[1] *= maxT / tsum; }
+    // The major candidates' shares at the real third-party vote, then adjusted for any change in the third-party shares.
+    const r0 = basePool * (50 + m2 / 2) / 100;
+    let rS = r0, dS = basePool - r0;
+    for (let i = 0; i < 2; i++) {
+      const freed = base[i] - t[i];                // positive: the third party lost votes; negative: it gained them
+      if (freed === 0) continue;
+      const th = thirds && thirds[i];
+      const toR = th && th.toR !== undefined && th.toR !== null ? th.toR : (basePool > 0 ? r0 / basePool : 0.5);
+      rS += freed * toR;
+      dS += freed * (1 - toR);
+    }
+    if (rS < 0) { dS += rS; rS = 0; }              // a third party can't take more votes from a candidate than they have
+    if (dS < 0) { rS += dS; dS = 0; }
+    const shares = [rS, dS, t[0], t[1]];
+    const order = [0, 1, 2, 3].sort((a, b) => shares[b] - shares[a] || a - b);
+    const lead = roundM(shares[order[0]] - shares[order[1]]);
+    let winner = order[0], tie = false;
+    if (lead === 0) { tie = true; winner = rng() < 0.5 ? order[0] : order[1]; }
     // Real split electors are kept while the state's winner is unchanged; a flipped state is winner-take-all.
-    const keepSplit = attrs.ev_split && winner === attrs.base_winner;
-    votes1 += keepSplit ? attrs.ev_split.r : (winner === 1 ? ev : 0);
-    votes2 += keepSplit ? attrs.ev_split.d : (winner === 2 ? ev : 0);
-    results.push({ state, ev, signed, margin: Math.abs(signed), winner, tie, fixed: false, split: keepSplit ? attrs.ev_split : null });
+    const keepSplit = attrs.evs && winner === attrs.base_winner;
+    if (keepSplit) attrs.evs.forEach((n, i) => { votes[i] += n; });
+    else votes[winner] += ev;
+    results.push({ state, ev, signed: m2, margin: lead, lead, winner, tie, fixed: false, split: keepSplit ? attrs.evs : null, shares });
   }
-  // stable sort by margin, take 3 closest (legislature-chosen states have no margin)
-  const closest = results.filter((r) => !r.fixed).sort((a, b) => a.margin - b.margin).slice(0, 3);
-  return { results, closest, votes1, votes2, swing, environment, approval };
+  // stable sort by lead, take 3 closest (legislature-chosen states have no margin)
+  const closest = results.filter((r) => !r.fixed).sort((a, b) => a.lead - b.lead).slice(0, 3);
+  return { results, closest, votes, votes1: votes[0], votes2: votes[1], total: votes.reduce((a, b) => a + b, 0), swing, environment, approval };
 }
 
 // ---------- UI ----------
@@ -243,6 +305,50 @@ function buildCard(el, title, nameLabel, defs, prefix, defaultName = "") {
   el.appendChild(hf);
 }
 
+// Third-party cards: a name and a national vote share. The share only counts as changed once the person moves the
+// slider, so an untouched card uses the exact real share (the slider can't hold values like 18.878).
+function buildThirdCards(p) {
+  const box = $("third-cards");
+  box.innerHTML = "";
+  [["t1", p.cands.t1, p.nat[0]], ["t2", p.cands.t2, p.nat[1]]].forEach(([k, real, actual]) => {
+    if (!real && k === "t2") return;
+    const cand = real || { name: "", party: "Independent", abbr: "Ind" };
+    const card = el("article", `card ${k}`);
+    card.innerHTML = `<h3>${real ? "Third-party candidate" : "Third-party candidate (hypothetical)"}: ${esc(cand.party)}</h3>
+      <div class="field"><label for="${k}-name">${real ? "Name" : "Name (optional)"}</label>
+        <input type="text" id="${k}-name" autocomplete="off" /></div>
+      <div class="field"><label for="${k}-share"><span>National vote share (%)${real ? ` (actual: ${actual.toFixed(1)}%)` : " (0 = not running)"}</span>
+        <span class="val wide" id="${k}-share-val"></span></label>
+        <input type="range" id="${k}-share" min="0" max="45" step="0.1" /></div>
+      <div class="field"><label for="${k}-flow"><span>If their voters had to pick a major party: % who pick the Republican</span>
+        <span class="val wide" id="${k}-flow-val">Proportional</span></label>
+        <input type="range" id="${k}-flow" min="0" max="100" step="1" value="50" /></div>
+      <p class="note">${real
+        ? "Move the slider to scale this candidate's vote in every state. At 0 they drop out and their votes go to the Republican and Democrat in proportion."
+        : "Gives a third-party candidate this share of the vote in every state, taken from the Republican and Democrat in proportion."}</p>`;
+    box.appendChild(card);
+    card.querySelector(`#${k}-name`).value = real ? real.name : "";
+    const slider = card.querySelector(`#${k}-share`), val = card.querySelector(`#${k}-share-val`);
+    slider.value = actual; val.textContent = actual.toFixed(1);
+    slider.dataset.actual = actual; slider.dataset.touched = "0"; slider.dataset.abbr = cand.abbr;
+    slider.addEventListener("input", () => { slider.dataset.touched = "1"; val.textContent = parseFloat(slider.value).toFixed(1); });
+    const flow = card.querySelector(`#${k}-flow`), flowVal = card.querySelector(`#${k}-flow-val`);
+    flow.dataset.touched = "0";
+    flow.addEventListener("input", () => { flow.dataset.touched = "1"; flowVal.textContent = `${flow.value}% R / ${100 - flow.value}% D`; });
+  });
+}
+
+function readThird(k, p) {
+  const slider = $(`${k}-share`);
+  if (!slider) return { share: 0, actual: 0, name: "", abbr: "", present: false };
+  const actual = parseFloat(slider.dataset.actual);
+  const share = slider.dataset.touched === "1" ? parseFloat(slider.value) : actual;
+  const flow = $(`${k}-flow`);
+  const toR = flow && flow.dataset.touched === "1" ? parseFloat(flow.value) / 100 : null;   // null = in proportion
+  const real = p.cands[k];
+  return { share, actual, toR, name: $(`${k}-name`).value.trim() || (real ? real.name : "Third-party candidate"), abbr: real ? real.abbr : "Ind", present: true };
+}
+
 function readCandidate(prefix, defs, fallbackName) {
   const c = { name: $(`${prefix}-name`).value.trim() || fallbackName };
   for (const d of defs) c[d.key] = parseInt($(`${prefix}-${d.key}`).value, 10);
@@ -250,9 +356,9 @@ function readCandidate(prefix, defs, fallbackName) {
   return c;
 }
 
-// ----- National environment (slider value is in half points: -60..60 -> D+30..R+30) -----
+// ----- National environment (slider value is in half points: -70..70 -> D+35..R+35) -----
 const envValue = () => parseInt($("env").value, 10) / 2;
-const updateEnvLabel = () => { $("env-val").textContent = fmtMargin(envValue()); };
+const updateEnvLabel = () => { $("env-val").textContent = fmtMarginP(envValue()); };
 
 // ----- State settings panel -----
 const editableNames = () => Object.keys(DEFAULT_STATES).filter((n) => !DEFAULT_STATES[n].fixed);
@@ -279,7 +385,7 @@ function renderStateSliders() {
   const box = $("state-sliders");
   box.innerHTML = "";
 
-  const rows = [{ key: "pvi", label: "PVI (partisan lean vs. the nation)", min: PVI_MIN, max: PVI_MAX, step: 0.1, fmt: fmtPvi }]
+  const rows = [{ key: "pvi", label: "PVI (partisan lean vs. the nation)", min: PVI_MIN, max: PVI_MAX, step: 0.1, fmt: fmtPviP }]
     .concat(STATE_FIELDS.map((f) => ({ key: f.key, label: f.label, min: 1, max: 10, step: 1, fmt: String })));
 
   for (const r of rows) {
@@ -315,47 +421,52 @@ function el(tag, cls, html) {
 }
 const esc = (s) => s.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 
-function render(c1, c2, sim) {
-  const n1 = esc(c1.name), n2 = esc(c2.name);
-  const nameOf = (w) => (w === 1 ? n1 : n2);
+const SLOT_ICON = ["✅", "🔵", "🟣", "🟠", "⬜"];
+const SLOT_CLASS = ["r", "b", "t1", "t2", "o"];
+
+// info: { names: [R, D, T1, T2], abbrs: [R, D, T1, T2] }
+function render(info, sim) {
+  const nm = (i) => (i === 4 ? "Others" : esc(info.names[i]));
+  const ab = (i) => (i === 4 ? "Oth" : info.abbrs[i]);
 
   $("approval-note").textContent =
-    `National environment: ${fmtMargin(sim.environment)} | Swing from approval: ${fmtMargin(roundM(sim.approval))} | Total national swing: ${fmtMargin(roundM(sim.swing))}`;
+    `National environment: ${fmtMarginP(sim.environment)} | Swing from approval: ${fmtMarginP(roundM(sim.approval))} | Total national swing: ${fmtMarginP(roundM(sim.swing))}`;
 
-  // Per-state results with margins
+  // Per-state results with margins (margin = the winner's lead over the runner-up)
   const list = $("state-list"); list.innerHTML = "";
   for (const r of sim.results) {
     if (r.fixed) {
-      list.appendChild(el("li", r.winner === 1 ? "r" : "b",
-        `<span class="txt">📜 <b>${r.state}</b>: ${nameOf(r.winner)} (${r.ev} votes), electors chosen by the state legislature</span><span class="margin">No popular vote</span>`));
+      list.appendChild(el("li", SLOT_CLASS[r.winner],
+        `<span class="txt">📜 <b>${r.state}</b>: ${nm(r.winner)} (${r.ev} votes), electors chosen by the state legislature</span><span class="margin">No popular vote</span>`));
       continue;
     }
-    const cls = r.tie ? "" : r.winner === 1 ? "r" : "b";
-    const icon = r.tie ? "🤝" : r.winner === 1 ? "✅" : "🔵";
-    const splitText = r.split ? `, real electors split R ${r.split.r} / D ${r.split.d}` : "";
+    const icon = r.tie ? "🤝" : SLOT_ICON[r.winner];
+    const splitText = r.split ? `, real electors split ${r.split.map((n, i) => (n ? `${ab(i)} ${n}` : "")).filter(Boolean).join(" / ")}` : "";
     const text = r.tie
-      ? `${icon} <b>${r.state}</b>: Tie, random winner is ${nameOf(r.winner)} (${r.ev} votes${splitText})`
-      : `${icon} <b>${r.state}</b>: ${nameOf(r.winner)} wins (${r.ev} votes${splitText})`;
-    list.appendChild(el("li", cls, `<span class="txt">${text}</span><span class="margin">Margin: ${fmtMargin(r.signed)}</span>`));
+      ? `${icon} <b>${r.state}</b>: Tie, random winner is ${nm(r.winner)} (${r.ev} votes${splitText})`
+      : `${icon} <b>${r.state}</b>: ${nm(r.winner)} wins (${r.ev} votes${splitText})`;
+    const shareText = r.shares.map((s, i) => (s >= 0.05 ? `${ab(i)} ${s.toFixed(1)}` : "")).filter(Boolean).join(" · ");
+    list.appendChild(el("li", r.tie ? "" : SLOT_CLASS[r.winner],
+      `<span class="txt">${text}<small class="shares">${shareText}</small></span><span class="margin">Margin: ${fmtLead(ab(r.winner), r.lead)}</span>`));
   }
 
   // 3 closest
   const cl = $("closest-list"); cl.innerHTML = "";
   for (const r of sim.closest) {
-    cl.appendChild(el("li", r.winner === 1 ? "r" : "b",
-      `<span class="txt">State: <b>${r.state}</b> | Margin: ${fmtMargin(r.signed)} | Winner: ${nameOf(r.winner)}</span>`));
+    cl.appendChild(el("li", SLOT_CLASS[r.winner],
+      `<span class="txt">State: <b>${r.state}</b> | Margin: ${fmtLead(ab(r.winner), r.lead)} | Winner: ${nm(r.winner)}</span>`));
   }
 
   // Bar chart
   const chart = $("chart"); chart.innerHTML = "";
   if (sim.closest.length) {
-    const max = Math.max(1, ...sim.closest.map((r) => r.margin));
+    const max = Math.max(1, ...sim.closest.map((r) => r.lead));
     chart.appendChild(el("h3", "", "Top 3 Closest States by Margin (points)"));
     const bars = el("div", "bars"), labels = el("div", "bar-labels"), legend = el("div", "legend");
     sim.closest.forEach((r, i) => {
-      const col = el("div", "bar-col", `<div class="bar-val">${fmtMargin(r.signed)}</div>`);
+      const col = el("div", "bar-col", `<div class="bar-val">${fmtLead(ab(r.winner), r.lead)}</div>`);
       const bar = el("div", "bar"); bar.style.background = CHART_COLORS[i];
-      bar.style.height = `${(r.margin / max) * 85}%`;
+      bar.style.height = `${(r.lead / max) * 85}%`;
       col.appendChild(bar); bars.appendChild(col);
       labels.appendChild(el("span", "", r.state));
       legend.appendChild(el("span", "", `<i style="background:${CHART_COLORS[i]}"></i>${r.state}`));
@@ -365,25 +476,36 @@ function render(c1, c2, sim) {
     chart.textContent = "No close states to display.";
   }
 
-  // Final results
-  $("final-1").innerHTML = `🟥 ${n1}: ${sim.votes1} Electoral Votes`;
-  $("final-2").innerHTML = `🟦 ${n2}: ${sim.votes2} Electoral Votes`;
+  // Final results: one line per candidate that is running (or got electors)
+  const present = [true, true, info.present[0], info.present[1], sim.votes[4] > 0];
+  ["🟥", "🟦", "🟪", "🟧", "⬜"].forEach((icon, i) => {
+    const d = $(`final-${i + 1}`);
+    d.style.display = present[i] || sim.votes[i] > 0 ? "" : "none";
+    d.innerHTML = `${icon} ${nm(i)}: ${sim.votes[i]} Electoral Votes`;
+  });
+  const need = Math.floor(sim.total / 2) + 1;
+  const order = [0, 1, 2, 3, 4].sort((a, b) => sim.votes[b] - sim.votes[a]);
   const v = $("verdict");
-  if (sim.votes1 > sim.votes2) { v.className = "verdict win"; v.innerHTML = `🎉 ${n1} wins the election!`; }
-  else if (sim.votes2 > sim.votes1) { v.className = "verdict win"; v.innerHTML = `🎉 ${n2} wins the election!`; }
-  else { v.className = "verdict tie"; v.textContent = "It's a tie! No clear winner."; }
+  if (sim.votes[order[0]] >= need && sim.votes[order[0]] > sim.votes[order[1]]) { v.className = "verdict win"; v.innerHTML = `🎉 ${nm(order[0])} wins the election!`; }
+  else if (sim.votes[order[0]] === sim.votes[order[1]] && sim.votes[order[0]] >= need) { v.className = "verdict tie"; v.textContent = "It's a tie! No clear winner."; }
+  else { v.className = "verdict tie"; v.innerHTML = `No candidate wins a majority: ${need} of ${sim.total} electoral votes are needed. In real life the House of Representatives would choose between the top candidates. ${nm(order[0])} leads with ${sim.votes[order[0]]}.`; }
 
   $("results").hidden = false;
 }
 
-// Load a preset: states, environment and candidate names; candidates go back to the typical profile.
+// Load a preset: states, environment, candidates and third parties; candidates go back to the typical profile.
+let currentPresetData = null;
 function applyPreset(key) {
   currentPreset = key;
   const p = presetData(key);
+  currentPresetData = p;
+  PRES = { r: p.cands.r, d: p.cands.d };
   DEFAULT_STATES = deepCopy(p.states);
   currentStates = deepCopy(p.states);
-  buildCard($("cand1-card"), "Candidate 1 (Republican)", "Enter the name of Candidate 1 (Republican):", CAND1_SLIDERS, "c1", p.r);
-  buildCard($("cand2-card"), "Candidate 2 (Democrat)", "Enter the name of Candidate 2 (Democrat):", CAND2_SLIDERS, "c2", p.d);
+  const rp = p.cands.r.party, dp = p.cands.d.party;
+  buildCard($("cand1-card"), `Candidate 1 (${rp})`, `Enter the name of Candidate 1 (${rp}):`, CAND1_SLIDERS, "c1", p.cands.r.name);
+  buildCard($("cand2-card"), `Candidate 2 (${dp})`, `Enter the name of Candidate 2 (${dp}):`, CAND2_SLIDERS, "c2", p.cands.d.name);
+  buildThirdCards(p);
   $("env").value = p.env * 2;      // slider is in half points
   updateEnvLabel();
   $("preset-note").textContent = p.note;
@@ -392,10 +514,15 @@ function applyPreset(key) {
   $("results").hidden = true;
 }
 
+const presetLabel = (y) => {
+  const c = ELECTION_DATA[y].cand;
+  return `${y}: ${[`${c.r.name} (${c.r.abbr})`, `${c.d.name} (${c.d.abbr})`, c.t1 && c.t1.name, c.t2 && c.t2.name].filter(Boolean).join(" vs. ")}`;
+};
+
 function init() {
   const sel = $("preset-select");
   sel.innerHTML = `<option value="current">Current day (2025 Cook PVI)</option>` +
-    ELECTION_KEYS.map((y) => `<option value="${y}">${y}: ${ELECTION_DATA[y].r} (R) vs. ${ELECTION_DATA[y].d} (D)</option>`).join("");
+    ELECTION_KEYS.map((y) => `<option value="${y}">${presetLabel(y)}</option>`).join("");
   sel.addEventListener("change", () => { applyPreset(sel.value); window.scrollTo({ top: 0 }); });
   const reset = () => { applyPreset(currentPreset); window.scrollTo({ top: 0 }); };
   applyPreset("current");
@@ -405,12 +532,19 @@ function init() {
   $("state-reset-all").addEventListener("click", () => resetStates(true));
   $("restart").addEventListener("click", reset);
   $("run").addEventListener("click", () => {
+    const p = currentPresetData;
     const c1 = readCandidate("c1", CAND1_SLIDERS, "Candidate 1");
     const c2 = readCandidate("c2", CAND2_SLIDERS, "Candidate 2");
-    render(c1, c2, simulate(c1, c2, Math.random, currentStates, envValue()));
+    const thirds = [readThird("t1", p), readThird("t2", p)];
+    const info = {
+      names: [c1.name, c2.name, thirds[0].name, thirds[1].name],
+      abbrs: [p.cands.r.abbr, p.cands.d.abbr, thirds[0].abbr, thirds[1].abbr],
+      present: [thirds[0].present && (thirds[0].share > 0 || thirds[0].actual > 0), thirds[1].present && (thirds[1].share > 0 || thirds[1].actual > 0)],
+    };
+    render(info, simulate(c1, c2, Math.random, currentStates, envValue(), thirds));
     $("results").scrollIntoView({ behavior: "smooth" });
   });
 }
 
 if (typeof document !== "undefined") init();
-if (typeof module !== "undefined") module.exports = { STATES, DEFAULT_STATES, simulate, stateMargin, approvalSwing, presetData, ELECTION_KEYS, TYPICAL_R, TYPICAL_D };
+if (typeof module !== "undefined") module.exports = { STATES, DEFAULT_STATES, simulate, stateMargin, approvalSwing, presetData, ELECTION_KEYS, TYPICAL_R, TYPICAL_D, argmax };
