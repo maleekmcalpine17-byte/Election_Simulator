@@ -144,3 +144,12 @@ h2 { margin: 36px 0 12px; font-size: 1.25rem; }
 .state-list li.t2, .closest-list li.t2 { border-left-color: #e67e22; }
 .state-list li.o, .closest-list li.o { border-left-color: var(--tie); }
 .shares { display: block; color: var(--muted); font-size: .8rem; }
+
+/* ---------- race simulator ---------- */
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 14px; }
+@media (max-width: 760px) { .grid3 { grid-template-columns: 1fr; } }
+.radios { display: grid; gap: 6px; }
+.radio { display: flex !important; justify-content: flex-start !important; gap: 8px; align-items: center; font-size: .95rem; }
+.note.warn { color: var(--warn-tx); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+#tab-race .cards { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }

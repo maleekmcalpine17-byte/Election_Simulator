@@ -149,7 +149,7 @@
   }
 
   // Name, incumbent checkbox, five stance sliders and approval for one candidate.
-  function buildCandidateEditor(parent, def, rs, side, onChange) {
+  function buildCandidateEditor(parent, def, rs, side, onChange, opts = {}) {
     const c = rs[side];
     const defs = side === "r" ? CAND1_SLIDERS : CAND2_SLIDERS;
     const indep = side === "d" && c.party === "I";
@@ -160,11 +160,13 @@
     nameInput.value = c.name;
     nameInput.addEventListener("input", () => { c.name = nameInput.value; onChange("name"); });
     card.appendChild(nameField);
-    const incField = mk("div", "field check", `<label><input type="checkbox" /> Incumbent (+${INCUMBENT_BONUS} points)</label>`);
-    const inc = incField.querySelector("input");
-    inc.checked = c.incumbent;
-    inc.addEventListener("change", () => { c.incumbent = inc.checked; onChange("incumbent"); });
-    card.appendChild(incField);
+    if (!opts.noIncumbent) {
+      const incField = mk("div", "field check", `<label><input type="checkbox" /> Incumbent (+${INCUMBENT_BONUS} points)</label>`);
+      const inc = incField.querySelector("input");
+      inc.checked = c.incumbent;
+      inc.addEventListener("change", () => { c.incumbent = inc.checked; onChange("incumbent"); });
+      card.appendChild(incField);
+    }
     for (const d of defs) {
       addSlider(card, { label: d.prompt, min: d.min, max: d.max, value: c[d.key], onInput: (v) => { c[d.key] = v; onChange(d.key); } });
     }
@@ -347,6 +349,7 @@
 
   // ---------- Tabs ----------
   function renderTab(name) {
+    if (name === "race") { if (root.RaceSim) root.RaceSim.render(); return; }
     const m = /^(senate|governor)-(single|all)$/.exec(name);
     if (!m) return;
     (m[2] === "single" ? renderSingle : renderAll)(m[1]);
@@ -363,6 +366,7 @@
     buttons.forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
   }
 
-  root.DownBallot = { OFFICES, S, parseRating, calibrate, baseMargin, newRace, resetOffice, raceMargin, simulateOffice, ratingOf, BANDS, INCUMBENT_BONUS };
+  root.DownBallot = { OFFICES, S, parseRating, calibrate, baseMargin, newRace, resetOffice, raceMargin, simulateOffice, ratingOf, BANDS, INCUMBENT_BONUS,
+    ui: { mk, h, addSlider, buildCandidateEditor, signed, ENV_MIN, ENV_MAX, ADJ_MIN, ADJ_MAX } };
   if (typeof document !== "undefined" && document.getElementById("tabs")) initTabs();
 })();

@@ -95,6 +95,26 @@ Four extra tabs next to "President": **Senate: single race**, **Senate: all race
 - **Updating:** all race data is in `races.js` (nominees, incumbents, ratings, seat holders). Edit it if a nominee is
   replaced or ratings change; the calibration recomputes automatically.
 
+## Race simulator (any state, any year, any office)
+The **Race simulator** tab runs a single statewide race anywhere, in any preset year. Pick an office (U.S. Senate, Governor,
+Lieutenant Governor, Attorney General, Secretary of State, or any other statewide office with your own name), a state and
+a preset year ("Current day" or any election from 1828 to 2024; DC is left out, and a state that didn't take part in the
+chosen year is swapped for the first one that did, with a note).
+- **Baseline:** the state's lean is its PVI from that year's presidential result and the national environment starts at that
+  year's real national margin, so with typical candidates and equal approval the race lands on the state's presidential
+  two-party margin that year. Change the environment slider to ask "what if it were a midterm wave" and so on.
+- **Candidates:** a Republican-side and a Democratic-side candidate (named for that year's parties, e.g. Whig), each with a
+  name, five issue stances and an approval rating, plus an optional third candidate with a vote share and a "where their
+  voters go" slider. Candidates stay when you change state, year or office, so you can compare the same matchup elsewhere.
+- **Incumbent:** choose who is the incumbent: nobody (open race), the Republican, the Democrat or the third candidate. The
+  incumbency advantage (default 3 points) is a slider. For a third-party incumbent it is added to their vote share.
+- **Other controls:** the state's PVI and a "race adjustment" slider for a candidate's or an office's crossover appeal.
+- **2026 shortcut:** for the Senate and governor, a button loads the real 2026 nominees for that state and sets the
+  incumbent from who holds the seat. There is no shortcut for other offices.
+- **Result:** the winner, margin, vote shares and a breakdown of where the margin comes from, updating as you change anything.
+- The model is the same as the Senate and governor tabs, and the baseline lean is presidential, so it won't capture a state
+  that votes very differently for this office than for president unless you use the race adjustment.
+
 ## How margins work
 Margins are in percentage points (R minus D), shown like `R+6.2` / `D+3.1`:
 
